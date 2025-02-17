@@ -223,6 +223,16 @@ func TestInteger_Decode(t *testing.T) {
 			input:       ":abc\r\n",
 			shouldError: true,
 		},
+		{
+			name:        "invalid integer",
+			input:       ":\r\n",
+			shouldError: true,
+		},
+		{
+			name:     "negative integer",
+			input:    ":-12345\r\n",
+			expected: -12345,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

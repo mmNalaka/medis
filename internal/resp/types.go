@@ -90,10 +90,40 @@ func (i *Integer) Decode(data []byte) error {
 	if err := validateData(data, IntegerPrefix, "integer"); err != nil {
 		return err
 	}
-	// Remove prefix and CRLF
+
+	// Get the number part without prefix and CRLF
+	numStr := string(data[1 : len(data)-2])
+	if len(numStr) == 0 {
+		return fmt.Errorf("invalid integer: empty number")
+	}
+
+	// Handle negative numbers
+	start := 0
+	sign := int64(1)
+	if numStr[0] == '-' {
+		sign = -1
+		start = 1
+		if len(numStr) == 1 {
+			return fmt.Errorf("invalid integer: only minus sign")
+		}
+	}
+
+	// Convert to number
 	i.Data = 0
-	for _, b := range data[1 : len(data)-2] {
+	for _, b := range numStr[start:] {
+		// Check if character is a digit
+		if b < '0' || b > '9' {
+			return fmt.Errorf("invalid integer: non-digit character found")
+		}
+
+		// Check for overflow
+		if i.Data > (1<<63-1)/10 {
+			return fmt.Errorf("integer overflow")
+		}
+
 		i.Data = i.Data*10 + int64(b-'0')
 	}
+
+	i.Data *= sign
 	return nil
 }
