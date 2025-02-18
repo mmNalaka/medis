@@ -250,3 +250,95 @@ func TestInteger_Decode(t *testing.T) {
 		})
 	}
 }
+
+func TestBulkStringEncode(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "basic string",
+			input:    "Hello",
+			expected: "$5\r\nHello\r\n",
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "$0\r\n\r\n",
+		},
+		{
+			name:     "string with spaces",
+			input:    "Hello World",
+			expected: "$11\r\nHello World\r\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := &BulkString{Data: []byte(tt.input)}
+			result := string(b.Encode())
+			if result != tt.expected {
+				t.Errorf("got %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestBulkStringDecode(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expected    string
+		shouldError bool
+	}{
+		{
+			name:        "valid string",
+			input:       "$5\r\nHello\r\n",
+			expected:    "Hello",
+			shouldError: false,
+		},
+		{
+			name:        "missing prefix",
+			input:       "Hello\r\n",
+			shouldError: true,
+		},
+		{
+			name:        "missing CRLF",
+			input:       "$5\r\nHello",
+			shouldError: true,
+		},
+		{
+			name:        "invalid string",
+			input:       "$5Hello\r\n",
+			shouldError: true,
+		},
+		{
+			name:        "null string",
+			input:       "$-1\r\n",
+			expected:    "",
+			shouldError: false,
+		},
+		{
+			name:        "long string",
+			input:       "$1000\r\n" + string(make([]byte, 1000)) + "\r\n",
+			expected:    string(make([]byte, 1000)),
+			shouldError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := &BulkString{}
+			err := b.Decode([]byte(tt.input))
+			if tt.shouldError && err == nil {
+				t.Error("expected error but got none")
+			}
+			if !tt.shouldError && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if !tt.shouldError && string(b.Data) != tt.expected {
+				t.Errorf("got %q, want %q", b.Data, tt.expected)
+			}
+		})
+	}
+}

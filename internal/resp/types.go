@@ -127,3 +127,65 @@ func (i *Integer) Decode(data []byte) error {
 	i.Data *= sign
 	return nil
 }
+
+// BulkString is a RESP type
+type BulkString struct {
+	Data []byte
+}
+
+// Encode the BulkString to RESP format
+// example: Hello => $5\r\nHello\r\n (5 is the length of the string)
+func (b *BulkString) Encode() []byte {
+	return []byte(fmt.Sprintf("$%d\r\n%s\r\n", len(b.Data), b.Data))
+}
+
+// Decode the BulkString from RESP format
+// example: $5\r\nHello\r\n => Hello
+// example: Null bulk string: $-1\r\n => Null
+func (b *BulkString) Decode(data []byte) error {
+	if err := validateData(data, BulkStringPrefix, "bulk string"); err != nil {
+		return err
+	}
+
+	// Find the first CRLF which appears after the length
+	// Cannot just slice the string since the length could be more than 1 digit
+	firstCRLFIndex := -1
+	for i := 1; i < len(data)-1; i++ {
+		if data[i] == '\r' && data[i+1] == '\n' {
+			firstCRLFIndex = i
+			break
+		}
+	}
+
+	// When the the length is not available
+	if firstCRLFIndex == -1 {
+		return fmt.Errorf("invalid bulk string: missing CRLF")
+	}
+
+	// Parse length
+	lengthStr := string(data[1:firstCRLFIndex])
+	length := 0
+	for _, ch := range lengthStr {
+		if ch < '0' || ch > '9' {
+			if ch == '-' && length == 0 && lengthStr == "-1" {
+				// Null bulk string
+				b.Data = nil
+				return nil
+			}
+			return fmt.Errorf("invalid bulk string length: non-digit character found")
+		}
+		length = length*10 + int(ch-'0')
+	}
+
+	// Validate string length
+	expectedLen := firstCRLFIndex + 2 + length + 2 // First CRLF + length + string + final CRLF
+	if len(data) != expectedLen {
+		return fmt.Errorf("invalid bulk string: length mismatch")
+	}
+
+	// Extract the string data
+	b.Data = make([]byte, length)
+	copy(b.Data, data[firstCRLFIndex+2:len(data)-2])
+
+	return nil
+}
