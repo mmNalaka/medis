@@ -167,17 +167,14 @@ func (b *BulkString) Decode(data []byte) error {
 
 	// Parse length
 	lengthStr := string(data[1:firstCRLFIndex])
-	length := 0
-	for _, d := range lengthStr {
-		if d < '0' || d > '9' {
-			if d == '-' && length == 0 && lengthStr == "-1" {
-				// Null bulk string
-				b.Data = nil
-				return nil
-			}
-			return fmt.Errorf("invalid bulk string length: non-digit character found")
-		}
-		length = length*10 + int(d-'0')
+	// Null buld string
+	if lengthStr == "-1" {
+		b.Data = nil
+		return nil
+	}
+	length, err := strconv.Atoi(lengthStr)
+	if err != nil {
+		return fmt.Errorf("invalid bulk string length: %v", err)
 	}
 
 	// Validate string length
@@ -237,18 +234,13 @@ func (a *Array) Decode(data []byte) error {
 
 	// Parse the length
 	lengthStr := string(data[1:firstCRLFIndex])
-	length := 0
-	for _, d := range lengthStr {
-		if d < '0' || d > '9' {
-			if d == '-' && length == 0 && lengthStr == "-1" {
-				// Null array
-				a.Data = nil
-				return nil
-			}
-			a.Data = nil
-			return fmt.Errorf("invalid array length: non-digit character found")
-		}
-		length = length*10 + int(d-'0')
+	if lengthStr == "-1" {
+		a.Data = nil
+		return nil
+	}
+	length, err := strconv.Atoi(lengthStr)
+	if err != nil {
+		return fmt.Errorf("invalid array length: %v", err)
 	}
 
 	// Parse elements
