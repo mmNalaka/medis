@@ -1,6 +1,9 @@
 package resp
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestSimpleString_Encode(t *testing.T) {
 	tests := []struct {
@@ -338,6 +341,110 @@ func TestBulkStringDecode(t *testing.T) {
 			}
 			if !tt.shouldError && string(b.Data) != tt.expected {
 				t.Errorf("got %q, want %q", b.Data, tt.expected)
+			}
+		})
+	}
+}
+
+func TestArrayEncode(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    *Array
+		expected []byte
+	}{
+		{
+			name:     "empty array",
+			input:    &Array{Data: []RESPData{}},
+			expected: []byte("*0\r\n"),
+		},
+		{
+			name: "array with integers",
+			input: &Array{Data: []RESPData{
+				&Integer{Data: 1},
+				&Integer{Data: 2},
+			}},
+			expected: []byte("*2\r\n:1\r\n:2\r\n"),
+		},
+		{
+			name:     "nil array",
+			input:    &Array{Data: nil},
+			expected: []byte("*-1\r\n"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := tt.input.Encode()
+			if !reflect.DeepEqual(actual, tt.expected) {
+				t.Errorf("Encode() = %v, expected %v", actual, tt.expected)
+			}
+		})
+	}
+}
+
+func TestArrayDecode(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       []byte
+		expected    *Array
+		shouldError bool
+	}{
+		{
+			name:        "empty array",
+			input:       []byte("*0\r\n"),
+			expected:    &Array{Data: []RESPData{}},
+			shouldError: false,
+		},
+		{
+			name:  "array with integers",
+			input: []byte("*2\r\n:1\r\n:2\r\n"),
+			expected: &Array{Data: []RESPData{
+				&Integer{Data: 1},
+				&Integer{Data: 2},
+			}},
+			shouldError: false,
+		},
+		{
+			name:        "nil array",
+			input:       []byte("*-1\r\n"),
+			expected:    &Array{Data: nil},
+			shouldError: false,
+		},
+		{
+			name:        "invalid array length",
+			input:       []byte("*a\r\n"),
+			expected:    &Array{Data: nil},
+			shouldError: true,
+		},
+		{
+			name:        "missing CRLF",
+			input:       []byte("*2\r"),
+			expected:    &Array{Data: nil},
+			shouldError: true,
+		},
+		{
+			name:  "array with bulk string",
+			input: []byte("*1\r\n$5\r\nhello\r\n"),
+			expected: &Array{Data: []RESPData{
+				&BulkString{Data: []byte("hello")},
+			}},
+			shouldError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := &Array{}
+			err := actual.Decode(tt.input)
+
+			if tt.shouldError && err == nil {
+				t.Error("expected error but got none")
+			}
+			if !tt.shouldError && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if !tt.shouldError && !reflect.DeepEqual(actual, tt.expected) {
+				t.Errorf("got %v, want %v", actual, tt.expected)
 			}
 		})
 	}
