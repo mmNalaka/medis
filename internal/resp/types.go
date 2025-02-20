@@ -12,6 +12,7 @@ const (
 	IntegerPrefix      = ':'
 	BulkStringPrefix   = '$'
 	ArrayPrefix        = '*'
+	NilPrefix          = '0'
 )
 
 // Validate the data before decoding
@@ -331,4 +332,15 @@ func findElementEnd(data []byte) int {
 	}
 
 	return -1
+}
+
+// Nil is a RESP type
+type Nil struct{}
+
+func (n *Nil) Decode(data []byte) error {
+	return nil
+}
+
+func (n *Nil) Encode() []byte {
+	return []byte("0\r\n")
 }

@@ -1,21 +1,28 @@
 package server
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"log"
 	"net"
 	"sync"
+
+	"github.com/mmnalaka/medis/internal/command"
 )
 
 type Server struct {
 	port     int
 	listener net.Listener
 	wg       sync.WaitGroup // WaitGroup to track active connections
+	handler  command.Handler
 }
 
 func NewServer(port int) *Server {
-	return &Server{port: port}
+	return &Server{
+		port:    port,
+		handler: *command.NewHandler(),
+	}
 }
 
 func (s *Server) Start(ctx context.Context) error {
@@ -63,13 +70,30 @@ func (s *Server) handleConnection(conn net.Conn) {
 	log.Printf("New connection from %s", conn.RemoteAddr())
 
 	// Example: Simple echo server
-	buf := make([]byte, 1024)
+	reader := bufio.NewReader(conn)
 	for {
-		n, err := conn.Read(buf)
+		// Read the incommig command
+		data, err := command.ReadCommand(reader)
 		if err != nil {
-			log.Printf("Connection closed: %v", err)
-			return
+			log.Printf("Failed to read command: %v", err)
+			break
 		}
-		conn.Write(buf[:n]) // Echo back the received data
+
+		// Parse command
+		cmd, err := command.ParseCommand(data)
+		if err != nil {
+			log.Printf("Failed to parse command: %v", err)
+			break
+		}
+
+		// Handle the command
+		respData := s.handler.Handle(cmd)
+
+		// Write the response back to the client
+		_, err = conn.Write(respData.Encode())
+		if err != nil {
+			log.Printf("Failed to write response: %v", err)
+			break
+		}
 	}
 }
